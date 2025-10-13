@@ -8,6 +8,9 @@ on:
 jobs:
   call-reusable-workflow:
     uses: distrischool-6/.github/.github/workflows/reusable-java-k8s-pipeline.yml@main
+    permissions:
+      contents: read
+      packages: write
     with:
       service-name: 'ds6-user-service'
     secrets:
