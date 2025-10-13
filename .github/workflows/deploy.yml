@@ -1,0 +1,47 @@
+# .github/workflows/deploy.yml
+    
+name: Deploy to VPS
+
+# Gatilho: Executa este workflow sempre que houver um push na branch 'main'
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest # O workflow roda em uma máquina virtual do GitHub
+
+    steps:
+      # 1. Baixa o código do seu repositório para a máquina do GitHub Actions
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      # 2. Conecta na sua VPS via SSH e executa os comandos de deploy
+      - name: Deploy to VPS
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.VPS_HOST }} # Pega o IP dos Secrets
+          username: ${{ secrets.VPS_USER }} # Pega o usuário dos Secrets
+          key: ${{ secrets.VPS_SSH_PRIVATE_KEY }} # Pega a chave privada dos Secrets
+          script: |
+            # Navega até a pasta do seu projeto
+            cd /home/github/meu-projeto
+            git pull origin main
+
+            # Cria ou atualiza o Secret do Kubernetes de forma segura,
+            # injetando os valores diretamente dos segredos do GitHub Actions.
+            # Isso evita que segredos fiquem versionados no repositório.
+            kubectl create secret generic user-service-secret \
+              --from-literal=DB_USER='${{ secrets.DB_USER }}' \
+              --from-literal=DB_PASSWORD='${{ secrets.DB_PASSWORD }}' \
+              --from-literal=JWT_SECRET='${{ secrets.JWT_SECRET }}' \
+              --dry-run=client -o yaml | kubectl apply -f -
+
+            # Aplica as outras configurações do Kubernetes.
+            # Note que não aplicamos mais o secret.yaml, pois ele foi criado dinamicamente.
+            kubectl apply -f k8s/configmap.yaml
+            kubectl apply -f k8s/deployment.yaml
+            kubectl apply -f k8s/service.yaml
+
+            echo "Deploy finalizado com sucesso!"

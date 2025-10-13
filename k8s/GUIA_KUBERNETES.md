@@ -1,88 +1,56 @@
-# Guia para Preparar um Serviço Spring Boot para o Kubernetes
+# Guia Plug and Play para Deploy de Microsserviços no Kubernetes
 
-Este documento detalha os passos necessários para adaptar uma aplicação Spring Boot para ser executada de forma segura, resiliente e configurável em um ambiente Kubernetes.
+Este guia fornece um passo a passo completo para configurar um novo microsserviço Spring Boot para ser implantado em nosso cluster Kubernetes através do GitHub Actions.
 
----
-
-### Passo 1: Externalizar a Configuração da Aplicação
-
-**O Problema:** Configurações como URLs de banco de dados, senhas e chaves secretas não devem ser fixas no código (`hardcoded`). Isso é inseguro e inflexível, pois cada mudança exigiria a reconstrução da imagem Docker.
-
-**A Solução:** Modificar o `application.properties` para ler esses valores a partir de variáveis de ambiente. O Kubernetes será responsável por injetar essas variáveis nos contêineres.
-
-**Ação:** Substitua os valores estáticos por placeholders que leem variáveis de ambiente, usando a sintaxe `${NOME_DA_VARIAVEL:valor_default}`.
-
-**Arquivo Modificado:** `src/main/resources/application.properties`
-
-```properties
-# Antes
-spring.datasource.url=jdbc:postgresql://localhost:5432/distrischool_users
-spring.datasource.username=postgres
-spring.datasource.password=1234
-jwt.secret=6ABM8AgHqlaaQ/WDtQqJTQ6wO99YRXNRUhjJjVfbH+w=
-jwt.expiration=86400000
-
-# Depois
-spring.datasource.url=jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:distrischool_users}
-spring.datasource.username=${DB_USER:postgres}
-spring.datasource.password=${DB_PASSWORD:1234}
-jwt.secret=${JWT_SECRET:6ABM8AgHqlaaQ/WDtQqJTQ6wO99YRXNRUhjJjVfbH+w=}
-jwt.expiration=${JWT_EXPIRATION:86400000}
-```
+O objetivo é que o processo seja "plug and play": crie alguns arquivos de manifesto, configure os segredos e o serviço será implantado automaticamente.
 
 ---
 
-### Passo 2: Adicionar Endpoints de Verificação de Saúde (Health Probes)
+### Pré-requisitos
 
-**O Problema:** O Kubernetes precisa saber se a sua aplicação está funcionando corretamente para poder gerenciá-la (reiniciar se travar, não enviar tráfego se não estiver pronta).
-
-**A Solução:** Adicionar o **Spring Boot Actuator**, que expõe automaticamente endpoints como `/actuator/health` para monitoramento.
-
-**Ação:** Adicione a dependência do Actuator ao seu arquivo de build.
-
-**Arquivo Modificado:** `build.gradle`
-
-```groovy
-// Adicione esta linha dentro do bloco 'dependencies'
-implementation 'org.springframework.boot:spring-boot-starter-actuator'
-```
+Antes de começar, seu microsserviço deve:
+1.  Ser um projeto Spring Boot.
+2.  Ter a dependência do **Spring Boot Actuator** no `build.gradle` para health checks.
+    ```groovy
+    implementation 'org.springframework.boot:spring-boot-starter-actuator'
+    ```
+3.  Ter seu `application.properties` configurado para ler variáveis de ambiente (ex: `${DB_USER}`).
+4.  Ter um `Dockerfile` na raiz do projeto para construir a imagem.
 
 ---
 
-### Passo 3: Adaptar o Manifesto de Deployment do Kubernetes
+### Passo 1: Criar os Manifestos do Kubernetes
 
-**O Problema:** O `deployment.yaml` básico apenas executa a imagem, mas não aproveita os recursos de gerenciamento do Kubernetes.
+Para cada novo serviço, você precisará de 3 arquivos de manifesto dentro de uma pasta `k8s/` no repositório.
 
-**A Solução:** Aprimorar o manifesto para:
-1.  Usar os endpoints do Actuator com `livenessProbe` e `readinessProbe`.
-2.  Definir `requests` e `limits` de recursos (CPU/Memória) para garantir a estabilidade do cluster.
-3.  Instruir o deployment a carregar as variáveis de ambiente a partir de `ConfigMaps` e `Secrets`.
+**Instrução:** Copie os templates abaixo, crie os arquivos e **substitua todas as ocorrências de `[NOME-DO-SERVICO]`** pelo nome real do seu serviço (ex: `order-service`).
 
-**Ação:** Atualize o arquivo `k8s/deployment.yaml` com as seções `livenessProbe`, `readinessProbe`, `resources` e `envFrom`.
-
-**Arquivo Modificado:** `k8s/deployment.yaml`
+#### 1. `k8s/deployment.yaml`
+*Define como rodar sua aplicação no cluster.*
 
 ```yaml
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: ds6-user-service
+  name: [NOME-DO-SERVICO]
 spec:
-  replicas: 1
+  replicas: 2 # Quantas instâncias você quer rodando
   selector:
     matchLabels:
-      app: ds6-user-service
+      app: [NOME-DO-SERVICO]
   template:
     metadata:
       labels:
-        app: ds6-user-service
+        app: [NOME-DO-SERVICO]
     spec:
       containers:
-      - name: app
-        image: imagem-placeholder # Esta imagem será substituída pela sua pipeline de CI/CD
+      - name: [NOME-DO-SERVICO]-app
+        # IMPORTANTE: A imagem será construída e nomeada pela sua pipeline de CI.
+        # Use um nome padrão como gabriel/[NOME-DO-SERVICO]:latest
+        image: gabriel/[NOME-DO-SERVICO]:latest
         ports:
         - containerPort: 8080
-        # Health Probes: Garante que o tráfego só seja enviado para pods saudáveis.
+        # Health Probes (padrão para Spring Boot Actuator)
         livenessProbe:
           httpGet:
             path: /actuator/health/liveness
@@ -95,7 +63,7 @@ spec:
             port: 8080
           initialDelaySeconds: 5
           periodSeconds: 10
-        # Gerenciamento de Recursos: Garante a estabilidade do cluster.
+        # Recursos (ajuste se necessário)
         resources:
           requests:
             memory: "256Mi"
@@ -103,55 +71,127 @@ spec:
           limits:
             memory: "512Mi"
             cpu: "500m"
-        # Externalização de Configuração: Carrega configurações do ambiente K8s.
+        # Carrega as configurações dos manifestos abaixo
         envFrom:
         - configMapRef:
-            # O nome do ConfigMap que você criará
-            name: user-service-config
+            name: [NOME-DO-SERVICO]-config
         - secretRef:
-            # O nome do Secret que você criará
-            name: user-service-secret
+            name: [NOME-DO-SERVICO]-secret
 ```
 
----
+#### 2. `k8s/service.yaml`
+*Expõe sua aplicação para outros serviços dentro do cluster.*
 
-### Passo 4: Criar os Manifestos de Configuração e Segredos
+```yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: [NOME-DO-SERVICO]
+spec:
+  type: ClusterIP
+  selector:
+    app: [NOME-DO-SERVICO]
+  ports:
+    - protocol: TCP
+      port: 80 # Porta que outros serviços usarão
+      targetPort: 8080 # Porta interna do contêiner
+```
 
-**O Problema:** O deployment agora depende de um `ConfigMap` e de um `Secret` para obter suas configurações. Precisamos criar esses objetos no Kubernetes.
-
-**A Solução:** Criar arquivos YAML separados para o `ConfigMap` (dados não-sensíveis) e para o `Secret` (dados sensíveis).
-
-**Ação:** Crie os dois arquivos a seguir no diretório `k8s/`.
-
-**1. Novo Arquivo:** `k8s/configmap.yaml` (para dados não-sensíveis)
+#### 3. `k8s/configmap.yaml`
+*Guarda as configurações **não-secretas** da sua aplicação.*
 
 ```yaml
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: user-service-config
+  name: [NOME-DO-SERVICO]-config
 data:
-  DB_HOST: "postgres-service" # Nome do serviço do seu banco de dados no K8s
+  # Adicione aqui outras variáveis de ambiente não-sensíveis
+  DB_HOST: "postgres-service" # Assumindo que o serviço do DB se chama assim
   DB_PORT: "5432"
-  DB_NAME: "distrischool_users"
+  DB_NAME: "distrischool_NOME_DO_SEU_DB" # Troque pelo nome do DB
   JWT_EXPIRATION: "86400000"
 ```
 
-**2. Novo Arquivo:** `k8s/secret.yaml` (para dados sensíveis)
+---
 
-**IMPORTANTE:** Os valores em um `Secret` devem ser codificados em **Base64**.
+### Passo 2: Configurar os Segredos no GitHub
+
+**NUNCA** salve senhas ou chaves no repositório. Nós as gerenciamos de forma centralizada na Organização do GitHub.
+
+1.  Vá para a sua **Organização GitHub** -> `Settings` -> `Secrets and variables` -> `Actions`.
+2.  Crie os segredos necessários para o seu novo serviço. Se ele usa o mesmo banco de dados, você pode reutilizar os segredos existentes. Se forem novos, crie-os:
+    *   `DB_USER`: O usuário do banco de dados.
+    *   `DB_PASSWORD`: A senha do banco de dados.
+    *   `JWT_SECRET`: A chave para assinar os tokens JWT.
+3.  **Dê acesso ao repositório:** Na política de acesso de cada segredo (`Repository access`), certifique-se de que o novo repositório do microsserviço está na lista de repositórios autorizados.
+
+---
+
+### Passo 3: Criar o Pipeline de Deploy (GitHub Actions)
+
+Este pipeline automatiza todo o processo de deploy.
+
+1.  Crie a pasta `.github/workflows/` no seu repositório.
+2.  Dentro dela, crie o arquivo `deploy.yml`.
+3.  Copie o conteúdo abaixo e **substitua as duas ocorrências de `[NOME-DO-SERVICO]`**.
+
+#### `.github/workflows/deploy.yml`
 
 ```yaml
-apiVersion: v1
-kind: Secret
-metadata:
-  name: user-service-secret
-type: Opaque
-data:
-  # Para gerar os valores, use o comando: echo -n 'seu-valor' | base64
-  DB_USER: "cG9zdGdyZXM=" # 'postgres' em Base64
-  DB_PASSWORD: "c3VhX3NlbmhhX2FxdWk=" # 'sua_senha_aqui' em Base64
-  JWT_SECRET: "NkFCTTNBZ0hxTGFhUS9XRHQzUWpUUTZ3Tzk5WVJYTlJVaGpKalZmaEgrdz0=" # '6ABM8...' em Base64
+name: Deploy [NOME-DO-SERVICO] to VPS
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Deploy to VPS
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_PRIVATE_KEY }}
+          script: |
+            # Navega até a pasta do projeto no servidor
+            cd /home/github/meu-projeto
+            git pull origin main
+
+            # Constrói a imagem Docker localmente no servidor
+            # Certifique-se que o Dockerfile está na raiz do projeto
+            docker build -t gabriel/[NOME-DO-SERVICO]:latest .
+
+            # Cria/Atualiza o Secret do Kubernetes com os valores do GitHub
+            kubectl create secret generic [NOME-DO-SERVICO]-secret \
+              --from-literal=DB_USER='${{ secrets.DB_USER }}' \
+              --from-literal=DB_PASSWORD='${{ secrets.DB_PASSWORD }}' \
+              --from-literal=JWT_SECRET='${{ secrets.JWT_SECRET }}' \
+              --dry-run=client -o yaml | kubectl apply -f -
+
+            # Aplica os outros manifestos do Kubernetes
+            kubectl apply -f k8s/configmap.yaml
+            kubectl apply -f k8s/deployment.yaml
+            kubectl apply -f k8s/service.yaml
+
+            echo "Deploy do [NOME-DO-SERVICO] finalizado com sucesso!"
 ```
 
-Com estes quatro passos, qualquer serviço Spring Boot se torna robusto e alinhado com as melhores práticas para deploy em Kubernetes.
+---
+
+### Checklist Final
+
+Se você seguiu todos os passos, seu novo microsserviço está pronto.
+
+- [ ] Substituiu todas as ocorrências de `[NOME-DO-SERVICO]` nos arquivos `deployment.yaml`, `service.yaml`, `configmap.yaml` e `deploy.yml`.
+- [ ] Adicionou os segredos necessários na Organização GitHub e deu permissão de acesso ao repositório.
+- [ ] Fez o commit e push dos novos arquivos para a branch `main`.
+
+Ao fazer o push, o pipeline do GitHub Actions será acionado e seu serviço será automaticamente implantado no cluster. Você pode acompanhar o progresso na aba "Actions" do seu repositório.
