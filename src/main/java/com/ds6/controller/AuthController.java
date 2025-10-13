@@ -9,7 +9,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.ds6.dto.RegisterRequestDTO;
 import com.ds6.dto.UserResponseDTO;
-import com.ds6.service.UserInterface;
+import com.ds6.service.UserService;
 
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -18,7 +18,7 @@ import lombok.RequiredArgsConstructor;
 @RequestMapping("/auth")
 @RequiredArgsConstructor
 public class AuthController {
-    public final UserInterface userService;
+    public final UserService userService;
 
     @PostMapping("/register")
     public ResponseEntity<UserResponseDTO> registerUser(@Valid @RequestBody RegisterRequestDTO registerRequest) {

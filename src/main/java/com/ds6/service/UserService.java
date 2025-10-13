@@ -5,7 +5,7 @@ import com.ds6.dto.UserResponseDTO;
 import com.ds6.dto.LoginRequestDTO;
 import com.ds6.dto.LoginResponseDTO;
 
-public interface UserInterface {
+public interface UserService {
     UserResponseDTO registerUser(RegisterRequestDTO request);
     LoginResponseDTO loginUser(LoginRequestDTO loginRequest);
 }

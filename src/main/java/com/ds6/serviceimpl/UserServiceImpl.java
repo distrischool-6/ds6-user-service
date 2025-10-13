@@ -4,10 +4,10 @@ import java.util.UUID;
 
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.Authentication;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
-import org.springframework.security.core.Authentication;
 
 import com.ds6.dto.LoginRequestDTO;
 import com.ds6.dto.LoginResponseDTO;
@@ -15,14 +15,14 @@ import com.ds6.dto.RegisterRequestDTO;
 import com.ds6.dto.UserResponseDTO;
 import com.ds6.model.User;
 import com.ds6.repository.UserRepository;
-import com.ds6.service.UserInterface;
+import com.ds6.service.UserService;
 
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 
 @Service
 @RequiredArgsConstructor
-public class UserServiceImpl implements UserInterface {
+public class UserServiceImpl implements UserService {
 
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
