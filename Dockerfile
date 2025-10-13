@@ -1,5 +1,5 @@
 # Estágio 1: Build da aplicação com Gradle
-FROM gradle:8.5.0-jdk21-alpine AS builder
+FROM gradle:8.5.0-jdk17-alpine AS builder
 
 WORKDIR /app
 COPY build.gradle settings.gradle gradlew ./
@@ -10,7 +10,7 @@ COPY src ./src
 RUN chmod +x ./gradlew && ./gradlew build --no-daemon
 
 # Estágio 2: Criação da imagem final, apenas com o JRE e o .jar
-FROM eclipse-temurin:21-jre-alpine
+FROM eclipse-temurin:17-jre-alpine
 
 WORKDIR /app
 
