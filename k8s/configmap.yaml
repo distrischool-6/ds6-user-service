@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: user-service-config
+  # Boas práticas: adicione labels para facilitar a busca e organização
+  labels:
+    app: ds6-user-service
+data:
+  # Host do banco de dados. No K8s, isso geralmente é o nome de outro Service.
+  DB_HOST: "postgres-service"
+  # Porta do banco de dados
+  DB_PORT: "5432"
+  # Nome do banco de dados
+  DB_NAME: "distrischool_users"
+  # Tempo de expiração do token JWT em milissegundos (24 horas)
+  JWT_EXPIRATION: "86400000"

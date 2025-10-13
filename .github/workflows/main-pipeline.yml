@@ -1,0 +1,14 @@
+name: 'CI/CD Pipeline Principal'
+
+on:
+  push:
+    branches:
+      - 'main'
+
+jobs:
+  call-reusable-workflow:
+    uses: minha-org-ds6/.github/.github/workflows/reusable-java-k8s-pipeline.yml@main
+    with:
+      service-name: 'ds6-user-service'
+    secrets:
+      inherit
