@@ -2,6 +2,7 @@ package com.ds6.serviceimpl;
 
 import java.util.UUID;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
@@ -24,10 +25,11 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class UserServiceImpl implements UserService {
 
-    private final UserRepository userRepository;
-    private final PasswordEncoder passwordEncoder;
-    private final JwtServiceImpl jwtService;
-    private final AuthenticationManager authenticationManager;
+    @Autowired
+    private UserRepository userRepository;
+    private PasswordEncoder passwordEncoder;
+    private JwtServiceImpl jwtService;
+    private AuthenticationManager authenticationManager;
 
     @Override
     @Transactional
