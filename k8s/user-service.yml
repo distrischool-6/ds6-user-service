@@ -1,0 +1,79 @@
+# =====================================================================================
+# SERVICE MANIFEST
+# Expõe o user-service para outros serviços dentro do cluster Kubernetes.
+# =====================================================================================
+apiVersion: v1
+kind: Service
+metadata:
+  name: user-service
+spec:
+  # Define o tipo de serviço como ClusterIP, o que significa que ele só é
+  # acessível de dentro do cluster. Ideal para comunicação entre microsserviços.
+  type: ClusterIP
+  selector:
+    # Seleciona os Pods que este serviço irá gerenciar, com base na label 'app'.
+    app: user-service
+  ports:
+    - protocol: TCP
+      # A porta que outros serviços usarão para se comunicar com o user-service.
+      port: 80
+      # A porta real em que a aplicação está rodando dentro do contêiner.
+      targetPort: 8080
+---
+# =====================================================================================
+# DEPLOYMENT MANIFEST
+# Define o estado desejado para o user-service no cluster.
+# =====================================================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: user-service
+spec:
+  # Define o número de instâncias (Pods) que devem estar rodando.
+  replicas: 2
+  selector:
+    matchLabels:
+      app: user-service
+  template:
+    metadata:
+      labels:
+        # Label para identificar os Pods gerenciados por este Deployment.
+        app: user-service
+    spec:
+      containers:
+      - name: user-service-app
+        # IMPORTANTE: Substitua 'seu-registro/user-service:latest' pela sua imagem Docker real.
+        image: gabriel/user-service:latest
+        ports:
+        - containerPort: 8080
+        # Health Probes: Garante que o tráfego só seja enviado para pods saudáveis.
+        livenessProbe:
+          httpGet:
+            path: /actuator/health/liveness
+            port: 8080
+          initialDelaySeconds: 15
+          periodSeconds: 20
+        readinessProbe:
+          httpGet:
+            path: /actuator/health/readiness
+            port: 8080
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        # Gerenciamento de Recursos: Garante a estabilidade do cluster.
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        # Externalização de Configuração: Carrega configurações do ambiente K8s.
+        # É uma boa prática separar configurações e segredos do manifesto de deploy.
+        # Você precisará criar os arquivos 'configmap.yaml' e 'secret.yaml' separadamente.
+        envFrom:
+        - configMapRef:
+            # Nome do ConfigMap que contém variáveis de ambiente não sensíveis.
+            name: user-service-config
+        - secretRef:
+            # Nome do Secret que contém variáveis de ambiente sensíveis (ex: senhas, chaves de API).
+            name: user-service-secret
